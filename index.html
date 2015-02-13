@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Timeline test</title>
+	<style>
+		div.tooltip {   
+		  position: absolute;           
+		  text-align: center;           
+		  width: 80px;                  
+		  height: 48px;                 
+		  padding: 2px;             
+		  font: 12px sans-serif;        
+		  background: lightsteelblue;   
+		  border: 0px;      
+		  border-radius: 8px;           
+		  pointer-events: none;         
+		}
+
+		.brush .extent {
+			stroke: gray;
+			fill: dodgerblue;
+			fill-opacity: .365;
+		}
+
+	</style>
+</head>
+<body>
+
+
+
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+<script>
+	
+function getDate(datestr) {
+	var parts = datestr.split("-");
+	return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+
+var height = 600, 
+	width = 1200,
+	padding = 200;
+
+
+var lanes = [
+	{
+		mission: [
+			{ name: "Inrebesiktning", start: "2012-01-02", end: "2014-01-02" },
+			{ name: "Inrebesiktning", start: "2014-01-03", end: "2016-01-03" },
+			{ name: "Inrebesiktning", start: "2016-02-03", end: "2020-01-03" }
+		],
+		type: { name: "Inrebesiktning", id: 1 }
+	},
+	{
+		mission: [
+			{ name: "Yttrebesiktning", start: "2012-01-02", end: "2016-01-02" },
+			{ name: "Yttrebesiktning", start: "2016-01-03", end: "2020-01-03" }
+		],
+		type: { name: "Yttrebesiktning", id: 2 }
+	},
+	{
+		mission: [
+			{ name: "Manuellbesiktning", start: "2012-01-02", end: "2018-01-02" },
+			{ name: "Manuellbesiktning", start: "2018-01-03", end: "2026-01-03" }
+		],
+		type: { name: "Manuellbesiktning", id: 3 }
+	},
+	{
+		mission: [
+			{ name: "Autobesiktning", start: "2015-01-02", end: "2018-01-02" },
+			{ name: "Autobesiktning", start: "2018-01-03", end: "2024-01-03" }
+		],
+		type: { name: "Autobesiktning", id: 4 }
+	}
+
+]
+
+var min = "2012-01-02"
+var max = "2026-01-03";
+console.log(getDate(min));
+
+
+var timeScale = d3.time.scale()
+					.domain([getDate(min), getDate(max)])
+					.range([padding, width - padding]);
+
+
+var steps = lanes.map(function(e) { return e.type.name; })
+
+console.log(steps);
+
+var laneScale = d3.scale.ordinal()
+					.domain(steps)
+					.rangePoints([height - padding, padding]);
+
+
+
+var yAxis = d3.svg.axis()
+                  .scale(laneScale)
+                  .orient("left");
+
+var xAxis = d3.svg.axis()
+                  .scale(timeScale)
+                  .orient("bottom");                  
+
+var xAxisSelect = d3.svg.axis()
+                  .scale(timeScale)
+                  .orient("top");
+
+
+var div = d3.select("body").append("div")   
+    .attr("class", "tooltip")               
+    .style("opacity", 0);
+
+var svg = d3.select("body")
+	.append("svg")
+	.attr("width", width)
+	.attr("height", height);
+
+var largeLane = svg.append("g");
+
+largeLane
+	.selectAll("g")
+	.data(lanes)
+	.enter()
+	.append("g")
+		.each(function() {
+
+			d3.select(this)
+				.selectAll("rect")
+				.data(function(d) { return d.mission; })
+				.enter()
+				.append("rect")
+				.attr("x", function(d) { return timeScale(getDate(d.start)); })
+				.attr("y", function(d, i) { return laneScale(d.name) + (i % 2) * 10; })
+				.attr("width", function(d) { return timeScale(getDate(d.end)) - timeScale(getDate(d.start))})
+				.attr("height", 5)
+				.attr("fill", function(d) {
+
+					var now = new Date();
+
+					if( now.getTime() > getDate(d.start).getTime() 
+						&& now.getTime() < getDate(d.end).getTime()) {
+						return "green";
+					} else {
+						return "#D8D5D5";
+					}
+				})
+				.on("mouseover", function() { d3.select(this).attr("stroke", "#333")})
+				.on("mouseout", function() { d3.select(this).attr("stroke", null)});
+
+
+			d3.select(this)
+				.append("g")
+				.selectAll("circle")
+				.data(function(d) { return d.mission })
+				.enter()
+				.append("circle")
+				.attr("cx", function(d) { return timeScale(getDate(d.start)); })
+				.attr("cy", function(d, i) { return laneScale(d.name)  + (i % 2) * 11; })
+				.attr("r", 7)
+				.attr("stroke", "black")
+				.attr("fill", "blue")
+				.attr("class", "date-start")
+				.on("mouseover", addPopup)                  
+		        .on("mouseout", removePopup);
+
+			d3.select(this)
+				.append("g")
+				.selectAll("circle")
+				.data(function(d) { return d.mission })
+				.enter()
+				.append("circle")
+				.attr("cx", function(d) { return timeScale(getDate(d.end)); })
+				.attr("cy", function(d, i) { return laneScale(d.name)  + (i % 2) * 10; })
+				.attr("r", 7)
+				.attr("stroke", "black")
+				.attr("fill", "#ff00cc")
+				.attr("class", "date-end")
+				.on("mouseover", addPopup)                  
+		        .on("mouseout", removePopup);
+		});
+
+largeLane.append("g")
+	.append("line")
+	.attr("x1", timeScale(new Date()))
+	.attr("y1", 0)
+	.attr("x2", timeScale(new Date()))
+	.attr("y2", height - padding)
+	.attr("style", "stroke: #999;stroke-dasharray: 5px;")
+
+largeLane.append("g")
+	.call(xAxis);
+
+largeLane.append("g")
+	.attr("transform", "translate(170,0)")
+	.call(yAxis);
+
+
+var intervalSelector = svg.append("g")
+							.attr("transform", "translate(0, 500)")
+intervalSelector
+	.append("g")
+	.call(xAxisSelect);
+
+var brush = d3.svg.brush()
+				  .x(timeScale)
+				  .on("brush", function() {
+
+				  	var minExtent = brush.extent()[0]
+				  	var maxExtent = brush.extent()[1]
+				  	console.log(minExtent, maxExtent);
+
+				  	timeScale.domain([minExtent, maxExtent]);
+
+
+				  });
+
+intervalSelector.append("g")
+			.attr("class", "x brush")
+			.call(brush)
+			.selectAll("rect")
+			.attr("y", 1)
+			.attr("height", height - 1);
+
+
+function addPopup(d) {
+
+	var date = (d3.select(this).attr("class") === 'date-start') ? d.start : d.end;
+	var type = (d3.select(this).attr("class") === 'date-start') ? "Interval starts" : "Interval ends";
+
+
+    div.transition()        
+        .duration(200)      
+        .style("opacity", .9);      
+    div .html("<p>" + type + ": <br>" + date + "</p>")  
+        .style("left", (d3.event.pageX) + "px")     
+        .style("top", (d3.event.pageY - 38) + "px");
+}
+
+function removePopup(d) {
+    div.transition()        
+        .duration(500)      
+        .style("opacity", 0);	
+}
+
+
+</script>
+
+</body>
+</html>
